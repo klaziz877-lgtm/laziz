@@ -44,9 +44,12 @@ async def start_command(client, message):
     await message.reply_text("Выберите нужный раздел:", reply_markup=keyboard)
 
 # --- Запуск ---
-async def main():
-    # Flask в отдельном потоке
+def start_flask():
     threading.Thread(target=run_flask, daemon=True).start()
+
+async def main():
+    # Запускаем Flask в фоне
+    start_flask()
     
     # Запускаем бота
     await bot.start()
@@ -54,4 +57,7 @@ async def main():
     await idle()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Создаём новый цикл событий для главного потока
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
