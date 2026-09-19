@@ -1,16 +1,16 @@
 import os
 import asyncio
-import threading
 from flask import Flask
 from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+import threading
 
 # --- Переменные окружения ---
 API_ID = int(os.environ.get("TELEGRAM_API_ID"))
 API_HASH = os.environ.get("TELEGRAM_API_HASH")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# --- Flask для пробуждения ---
+# --- Flask для пробуждения (Render требует, чтобы порт был открыт) ---
 app = Flask(__name__)
 
 @app.route("/")
@@ -19,7 +19,11 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    # Отключаем лишние логи Flask
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    app.run(host="0.0.0.0", port=port, use_reloader=False)
 
 # --- Pyrogram клиент ---
 bot = Client(
@@ -44,20 +48,24 @@ async def start_command(client, message):
     await message.reply_text("Выберите нужный раздел:", reply_markup=keyboard)
 
 # --- Запуск ---
-def start_flask():
-    threading.Thread(target=run_flask, daemon=True).start()
-
 async def main():
-    # Запускаем Flask в фоне
-    start_flask()
-    
-    # Запускаем бота
+    # Запускаем бота в текущем цикле событий
     await bot.start()
     print("Бот запущен!")
     await idle()
 
 if __name__ == "__main__":
-    # Создаём новый цикл событий для главного потока
+    # 1. Запускаем Flask в отдельном потоке (для пробуждения Render)
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    # 2. Создаём цикл событий ВРУЧНУЮ для главного потока
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(main())
+    
+    # 3. Запускаем бота
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        loop.close()
