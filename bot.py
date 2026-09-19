@@ -43,9 +43,8 @@ async def start_command(client, message):
     
     await message.reply_text("Выберите нужный раздел:", reply_markup=keyboard)
 
-# --- Функция запуска бота в отдельном потоке ---
+# --- Запуск бота в отдельном потоке ---
 def run_bot():
-    # Создаём НОВЫЙ цикл событий прямо в этом потоке
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -54,12 +53,10 @@ def run_bot():
         print("Бот запущен!")
         await idle()
 
-    # Запускаем цикл
     loop.run_until_complete(main())
 
 if __name__ == "__main__":
-    # 1. Запускаем бота в отдельном потоке (там будет свой цикл событий)
+    # Запускаем бота в фоне
     threading.Thread(target=run_bot, daemon=True).start()
-    
-    # 2. Flask работает в главном потоке (Render видит открытый порт)
+    # Flask работает в главном потоке
     run_flask()
