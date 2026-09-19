@@ -1,16 +1,16 @@
 import os
 import asyncio
+import threading
 from flask import Flask
 from pyrogram import Client, filters, idle
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
-import threading
 
 # --- Переменные окружения ---
 API_ID = int(os.environ.get("TELEGRAM_API_ID"))
 API_HASH = os.environ.get("TELEGRAM_API_HASH")
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# --- Flask для пробуждения (Render требует, чтобы порт был открыт) ---
+# --- Flask для пробуждения Render ---
 app = Flask(__name__)
 
 @app.route("/")
@@ -19,10 +19,6 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    # Отключаем лишние логи Flask
-    import logging
-    log = logging.getLogger('werkzeug')
-    log.setLevel(logging.ERROR)
     app.run(host="0.0.0.0", port=port, use_reloader=False)
 
 # --- Pyrogram клиент ---
@@ -47,25 +43,23 @@ async def start_command(client, message):
     
     await message.reply_text("Выберите нужный раздел:", reply_markup=keyboard)
 
-# --- Запуск ---
-async def main():
-    # Запускаем бота в текущем цикле событий
-    await bot.start()
-    print("Бот запущен!")
-    await idle()
-
-if __name__ == "__main__":
-    # 1. Запускаем Flask в отдельном потоке (для пробуждения Render)
-    threading.Thread(target=run_flask, daemon=True).start()
-    
-    # 2. Создаём цикл событий ВРУЧНУЮ для главного потока
+# --- Функция запуска бота в отдельном потоке ---
+def run_bot():
+    # Создаём НОВЫЙ цикл событий прямо в этом потоке
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+
+    async def main():
+        await bot.start()
+        print("Бот запущен!")
+        await idle()
+
+    # Запускаем цикл
+    loop.run_until_complete(main())
+
+if __name__ == "__main__":
+    # 1. Запускаем бота в отдельном потоке (там будет свой цикл событий)
+    threading.Thread(target=run_bot, daemon=True).start()
     
-    # 3. Запускаем бота
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass
-    finally:
-        loop.close()
+    # 2. Flask работает в главном потоке (Render видит открытый порт)
+    run_flask()
